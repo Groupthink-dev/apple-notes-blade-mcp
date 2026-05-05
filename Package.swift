@@ -27,15 +27,17 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../swift-sdk"),
+        // SQLite.swift without SQLCipher trait — Apple's NoteStore.sqlite is
+        // plain SQLite, not encrypted. Matches stallari-vault's SQLite client
+        // choice; we just don't pull in SQLCipher.
+        .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.3"),
     ],
     targets: [
         .target(
             name: "AppleNotesBlade",
             dependencies: [
                 .product(name: "MCP", package: "swift-sdk"),
-            ],
-            linkerSettings: [
-                .linkedLibrary("sqlite3"),
+                .product(name: "SQLite", package: "SQLite.swift"),
             ]
         ),
         .testTarget(
