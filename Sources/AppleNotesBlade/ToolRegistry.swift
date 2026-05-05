@@ -20,12 +20,16 @@ public actor AppleNotesToolRegistry {
     private let listFolders: ListFoldersHandler
     private let listNotes: ListNotesHandler
     private let readNote: ReadNoteHandler
+    private let searchNotes: SearchNotesHandler
+    private let head: HeadHandler
 
     public init(config: NotesBladeConfig) throws {
         self.store = try NoteStore(config: config)
         self.listFolders = ListFoldersHandler(store: store)
         self.listNotes = ListNotesHandler(store: store)
         self.readNote = ReadNoteHandler(store: store)
+        self.searchNotes = SearchNotesHandler(store: store)
+        self.head = HeadHandler(store: store)
     }
 
     /// Convenience constructor using the default canonical Apple Notes path.
@@ -50,6 +54,10 @@ public actor AppleNotesToolRegistry {
             return await listNotes.handle(arguments: arguments)
         case "apple_notes_read_note":
             return await readNote.handle(arguments: arguments)
+        case "apple_notes_search_notes":
+            return await searchNotes.handle(arguments: arguments)
+        case "apple_notes_head":
+            return await head.handle(arguments: arguments)
         default:
             return errorResult(.internalError("unknown tool: \(name)"))
         }

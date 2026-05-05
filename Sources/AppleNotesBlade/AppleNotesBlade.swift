@@ -12,5 +12,6 @@ import Foundation
 /// feature extraction allowed; no network egress.
 public enum AppleNotesBlade {
     /// Library version. Bump together with the git tag.
-    public static let version = "0.0.1"
+    /// See `Version.swift` for the canonical SemVer string.
+    public static let version = "0.1.0-rc1"
 }

@@ -84,9 +84,65 @@ public enum NotesToolSchemas {
         ])
     )
 
-    /// All schemas in registration order. Phase A.1+A.2 ships three; A.3 adds
-    /// `search_notes` + `head`.
+    public static let searchNotes = Tool(
+        name: "apple_notes_search_notes",
+        description:
+            "Search notes by title or snippet (LIKE-based, fast). Never opens "
+            + "body bytes. Optional account_id / folder_id / since filters.",
+        inputSchema: .object([
+            "type": .string("object"),
+            "required": .array([.string("query")]),
+            "properties": .object([
+                "query": .object([
+                    "type": .string("string"),
+                    "minLength": .int(1),
+                    "description": .string("Substring to match in note title or snippet."),
+                ]),
+                "account_id": .object([
+                    "type": .string("integer"),
+                    "description": .string("Optional. Limit search to this account."),
+                ]),
+                "folder_id": .object([
+                    "type": .string("integer"),
+                    "description": .string("Optional. Limit search to this folder."),
+                ]),
+                "since": .object([
+                    "type": .string("string"),
+                    "format": .string("date-time"),
+                    "description": .string("Optional. ISO-8601 lower bound on modification date."),
+                ]),
+                "limit": .object([
+                    "type": .string("integer"),
+                    "minimum": .int(1),
+                    "maximum": .int(1000),
+                    "default": .int(50),
+                ]),
+            ]),
+            "additionalProperties": .bool(false),
+        ])
+    )
+
+    public static let head = Tool(
+        name: "apple_notes_head",
+        description:
+            "Cheap metadata lookup for a single note. Returns title, dates, "
+            + "attachment count, body byte length — never opens body bytes. "
+            + "Use to decide whether to call read_note.",
+        inputSchema: .object([
+            "type": .string("object"),
+            "required": .array([.string("id")]),
+            "properties": .object([
+                "id": .object([
+                    "type": .string("integer"),
+                    "description": .string("Note primary key (Z_PK from list_notes)."),
+                ]),
+            ]),
+            "additionalProperties": .bool(false),
+        ])
+    )
+
+    /// All schemas in registration order — 5 tools as of A.3.
     public static func all() -> [Tool] {
-        [listFolders, listNotes, readNote]
+        [listFolders, listNotes, readNote, searchNotes, head]
     }
 }
