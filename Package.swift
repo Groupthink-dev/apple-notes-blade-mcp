@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.1
 import PackageDescription
 
 // apple-notes-blade-mcp
@@ -27,10 +27,13 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../swift-sdk"),
-        // SQLite.swift without SQLCipher trait — Apple's NoteStore.sqlite is
-        // plain SQLite, not encrypted. Matches stallari-vault's SQLite client
-        // choice; we just don't pull in SQLCipher.
-        .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.3"),
+        // SQLite.swift with SQLCipher trait — matches stallari-harness'
+        // SPM trait declaration so the merged graph resolves cleanly when
+        // this library is embedded as an SPM dep. We don't *use* SQLCipher
+        // (Apple's NoteStore.sqlite is plain SQLite); enabling the trait is
+        // purely for resolution compatibility. The runtime SQLite client
+        // exposed by the package is API-compatible across traits.
+        .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.3", traits: ["SQLCipher"]),
     ],
     targets: [
         .target(

@@ -46,18 +46,14 @@ public struct ListNotesHandler: Sendable {
     }
 }
 
-private let iso8601Formatter: ISO8601DateFormatter = {
-    let f = ISO8601DateFormatter()
-    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return f
-}()
-
-private let iso8601FormatterNoFraction: ISO8601DateFormatter = {
-    let f = ISO8601DateFormatter()
-    f.formatOptions = [.withInternetDateTime]
-    return f
-}()
-
+/// ISO-8601 parser that accepts both with-fractional-seconds and bare forms.
+/// Constructed per-call rather than module-global to satisfy Swift 6 strict
+/// concurrency (`ISO8601DateFormatter` is not `Sendable`).
 func parseISO8601(_ raw: String) -> Date? {
-    iso8601Formatter.date(from: raw) ?? iso8601FormatterNoFraction.date(from: raw)
+    let withFraction = ISO8601DateFormatter()
+    withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let d = withFraction.date(from: raw) { return d }
+    let bare = ISO8601DateFormatter()
+    bare.formatOptions = [.withInternetDateTime]
+    return bare.date(from: raw)
 }

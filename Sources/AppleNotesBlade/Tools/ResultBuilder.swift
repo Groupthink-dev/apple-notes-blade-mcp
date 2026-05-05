@@ -1,26 +1,28 @@
 import Foundation
 import MCP
 
-/// JSON encoder shared by all tool handlers. ISO-8601 dates with fractional
+/// JSON encoder used by all tool handlers. ISO-8601 dates with fractional
 /// seconds; pretty-print disabled (consumer-facing JSON, not human-edit).
-private let toolEncoder: JSONEncoder = {
+/// Constructed per-call to avoid Swift 6 strict-concurrency complaints about
+/// `JSONEncoder` instances at module scope.
+private func makeToolEncoder() -> JSONEncoder {
     let e = JSONEncoder()
     e.dateEncodingStrategy = .iso8601
     e.keyEncodingStrategy = .useDefaultKeys
     return e
-}()
+}
 
 /// Wrap any `Codable` payload as a `CallTool.Result` with a single `.text`
 /// content item containing the JSON-encoded payload. On encoding failure
 /// returns an internal-error result.
 func makeResult<T: Codable>(payload: T) -> CallTool.Result {
     do {
-        let data = try toolEncoder.encode(payload)
+        let data = try makeToolEncoder().encode(payload)
         let json = String(data: data, encoding: .utf8) ?? "{}"
         return CallTool.Result(content: [.text(text: json, annotations: nil, _meta: nil)])
     } catch {
         return CallTool.Result(
-            content: [.text(#"{"error":"encode_failure"}"#)],
+            content: [.text(text: #"{"error":"encode_failure"}"#, annotations: nil, _meta: nil)],
             isError: true
         )
     }
@@ -31,7 +33,7 @@ func makeResult<T: Codable>(payload: T) -> CallTool.Result {
 func errorResult(_ error: NotesBladeError) -> CallTool.Result {
     let payload = ErrorPayload(error: ErrorBody(from: error))
     do {
-        let data = try toolEncoder.encode(payload)
+        let data = try makeToolEncoder().encode(payload)
         let json = String(data: data, encoding: .utf8) ?? #"{"error":{"code":"unknown"}}"#
         return CallTool.Result(content: [.text(text: json, annotations: nil, _meta: nil)], isError: true)
     } catch {
