@@ -105,15 +105,38 @@ enum SampleNoteStoreBuilder {
             modDate3, modDate3
         )
 
-        // ZICNOTEDATA placeholder rows. ZDATA is populated in A.2 fixture
-        // extensions; here we just satisfy the foreign key.
-        try db.run("""
-            INSERT INTO ZICNOTEDATA (Z_PK, ZNOTE, ZDATA) VALUES
-                (200, 100, NULL),
-                (201, 101, NULL),
-                (202, 102, NULL);
-            """)
+        // ZICNOTEDATA rows with real gzip+protobuf-encoded ZDATA blobs.
+        // Each blob carries a known body string so readNote tests can verify
+        // round-trip fidelity. Note 102 also has an embedded attachment UUID.
+        let body100 = "Hello world body — this is the canonical first note."
+        let body101 = "Recipe — pesto. Basil, pine nuts, parmesan, garlic, olive oil."
+        let body102 = "Shopping list. Milk, eggs, bread, attached photo of fridge."
+        let attachmentUUID = "F4DCEC4A-1234-5678-90AB-CDEF12345678"
+
+        let blob100 = ProtobufFixtures.makeNoteBody(body100)
+        let blob101 = ProtobufFixtures.makeNoteBody(body101)
+        let blob102 = ProtobufFixtures.makeNoteBody(body102, attachmentUUID: attachmentUUID)
+
+        try db.run(
+            "INSERT INTO ZICNOTEDATA (Z_PK, ZNOTE, ZDATA) VALUES (?, ?, ?);",
+            [200, 100, Blob(bytes: [UInt8](blob100))]
+        )
+        try db.run(
+            "INSERT INTO ZICNOTEDATA (Z_PK, ZNOTE, ZDATA) VALUES (?, ?, ?);",
+            [201, 101, Blob(bytes: [UInt8](blob101))]
+        )
+        try db.run(
+            "INSERT INTO ZICNOTEDATA (Z_PK, ZNOTE, ZDATA) VALUES (?, ?, ?);",
+            [202, 102, Blob(bytes: [UInt8](blob102))]
+        )
     }
+
+    /// Body text fixtures — exposed so tests can assert round-trip equality
+    /// without duplicating string literals.
+    static let body100 = "Hello world body — this is the canonical first note."
+    static let body101 = "Recipe — pesto. Basil, pine nuts, parmesan, garlic, olive oil."
+    static let body102 = "Shopping list. Milk, eggs, bread, attached photo of fridge."
+    static let attachmentUUID = "F4DCEC4A-1234-5678-90AB-CDEF12345678"
 
     static func cleanup(path: String) {
         let dir = (path as NSString).deletingLastPathComponent
