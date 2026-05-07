@@ -36,7 +36,14 @@ fixtures/real/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
-NoteStore*
+# Real NoteStore data — never commit. Specifically the SQLite file +
+# its WAL/SHM siblings; the .swift source file `NoteStore.swift` is
+# tracked and must NOT be matched here. Earlier `NoteStore*` matched
+# both, silently dropping all source edits to the SQL queries (DD-241).
+NoteStore.sqlite
+NoteStore.sqlite-*
+NoteStore.db
+NoteStore.db-*
 
 # Build output (this repo doesn't ship binaries — paranoia guard)
 dist/
