@@ -2,6 +2,10 @@ import Foundation
 import MCP
 
 /// Handler for `apple_notes_list_notes`. Index-only — never decodes bodies.
+///
+/// DD-338 Phase C Wave 5: emits canonical `_meta:` envelope (B-tier promotion).
+/// `matched_total = returned` per Wave 5 OQ-4 ratification (post-LIMIT at v1).
+/// `next_cursor` omitted for offset-paginated tools per OQ-6.
 public struct ListNotesHandler: Sendable {
     public let store: NoteStore
 
@@ -15,25 +19,49 @@ public struct ListNotesHandler: Sendable {
         }
         let folderID = Int64(folderRaw)
 
-        let since: Date? = {
+        let sinceRaw: String? = {
             guard case .string(let raw) = arguments?["since"] else { return nil }
-            return parseISO8601(raw)
+            return raw
         }()
-        let limit: Int = {
+        let since: Date? = sinceRaw.flatMap { parseISO8601($0) }
+        let limitArg: Int? = {
             if case .int(let i) = arguments?["limit"] { return i }
-            return 100
+            return nil
         }()
-        let offset: Int = {
+        let offsetArg: Int? = {
             if case .int(let i) = arguments?["offset"] { return i }
-            return 0
+            return nil
         }()
+        let limit = limitArg ?? 100
+        let offset = offsetArg ?? 0
 
+        let t0 = ContinuousClock.now
         do {
             let notes = try await store.listNotes(
                 folderID: folderID, since: since, limit: limit, offset: offset
             )
-            let payload = ListNotesResponse(notes: notes)
-            return makeResult(payload: payload)
+            let elapsed = ContinuousClock.now - t0
+            var filteredBy: [String] = ["folder_id=\(folderID)"]
+            if let limitArg {
+                filteredBy.append("limit=\(limitArg)")
+            }
+            if let offsetArg {
+                filteredBy.append("offset=\(offsetArg)")
+            }
+            if let sinceRaw {
+                filteredBy.append("since=\(sinceRaw)")
+            }
+            filteredBy.sort()
+            let meta = MetaEnvelope(
+                matchedTotal: notes.count,
+                returned: notes.count,
+                filteredBy: filteredBy,
+                latencyMs: elapsed.toMilliseconds()
+            )
+            return makeResultWithMeta(
+                payload: ListNotesResponse(notes: notes),
+                meta: meta
+            )
         } catch let error as NotesBladeError {
             return errorResult(error)
         } catch {
