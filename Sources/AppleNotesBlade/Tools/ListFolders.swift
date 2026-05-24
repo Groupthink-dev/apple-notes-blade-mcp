@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import MCPHelpers
 
 /// Handler for `apple_notes_list_folders`. Optional `account_id` filter.
 ///
@@ -29,8 +30,8 @@ public struct ListFoldersHandler: Sendable {
             let meta = MetaEnvelope(
                 matchedTotal: folders.count,
                 returned: folders.count,
-                filteredBy: filteredBy,
-                latencyMs: elapsed.toMilliseconds()
+                latencyMs: elapsed.toMilliseconds(),
+                filteredBy: filteredBy
             )
             return makeResultWithMeta(
                 payload: ListFoldersResponse(folders: folders),
