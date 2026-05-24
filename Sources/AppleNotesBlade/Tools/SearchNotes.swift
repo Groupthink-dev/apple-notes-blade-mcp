@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import MCPHelpers
 
 /// Handler for `apple_notes_search_notes`. v0.1.0 implementation: SQL `LIKE`
 /// against `ZTITLE1` and `ZSNIPPET` — never opens body bytes. Real FTS via
@@ -65,8 +66,8 @@ public struct SearchNotesHandler: Sendable {
             let meta = MetaEnvelope(
                 matchedTotal: results.count,
                 returned: results.count,
-                filteredBy: filteredBy,
-                latencyMs: elapsed.toMilliseconds()
+                latencyMs: elapsed.toMilliseconds(),
+                filteredBy: filteredBy
             )
             return makeResultWithMeta(
                 payload: SearchNotesResponse(query: query, results: results),

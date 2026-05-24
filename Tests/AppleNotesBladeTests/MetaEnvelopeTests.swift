@@ -5,8 +5,21 @@
 //   - apple_notes_list_folders
 //   - apple_notes_list_notes
 //   - apple_notes_search_notes
+//
+// Post-DD-338-Phase-C-Wave-5 cutover: envelope construction + formatting now
+// flow through the canonical `MCPHelpers` SPM dep
+// (https://github.com/Groupthink-dev/stallari-mcp-helpers-swift). Canonical
+// wire-shape vs. the hand-rolled v1 differs in two ways exercised by these
+// tests:
+//   - `redactions` ALWAYS emitted (defaults to `[]`); was omitted when empty
+//   - `next_cursor` ALWAYS emitted (JSON `null` when nil); was omitted when nil
+//   - `filtered_by` alphabetically sorted by the formatter (caller no longer
+//     needs to pre-sort; existing pre-sort calls remain harmless)
+//   - `formatMetaLine` now throws (encoding-failure surface; unreachable in
+//     practice for our value types)
 
 import MCP
+import MCPHelpers
 import XCTest
 
 @testable import AppleNotesBlade
@@ -37,40 +50,63 @@ final class MetaEnvelopeTests: XCTestCase {
         return extractText(from: result)
     }
 
-    func testMetaEnvelopeFormatterByteShape() {
+    func testMetaEnvelopeFormatterByteShape() throws {
+        // Canonical MCPHelpers shape: ALWAYS emits matched_total, returned,
+        // filtered_by, latency_ms, redactions, next_cursor (6 required keys).
+        // error_notes omitted when nil/empty. `filtered_by` sorted alphabetically.
         let meta = MetaEnvelope(
             matchedTotal: 42,
             returned: 10,
-            filteredBy: ["folder_id=23", "limit=10"],
-            latencyMs: 87
+            latencyMs: 87,
+            filteredBy: ["folder_id=23", "limit=10"]
         )
-        let line = formatMetaLine(meta)
+        let line = try formatMetaLine(meta)
         XCTAssertTrue(line.hasPrefix("_meta: "))
         let json = String(line.dropFirst("_meta: ".count))
         let data = json.data(using: .utf8)!
         let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         XCTAssertNotNil(parsed)
-        XCTAssertEqual(parsed?.count, 4)
+        XCTAssertEqual(parsed?.count, 6)
         XCTAssertEqual(parsed?["matched_total"] as? Int, 42)
         XCTAssertEqual(parsed?["returned"] as? Int, 10)
+        // Canonical sorts filtered_by alphabetically.
         XCTAssertEqual(parsed?["filtered_by"] as? [String], ["folder_id=23", "limit=10"])
         XCTAssertEqual(parsed?["latency_ms"] as? Int, 87)
+        XCTAssertEqual(parsed?["redactions"] as? [String], [])
+        XCTAssertTrue(parsed?["next_cursor"] is NSNull)
     }
 
-    func testMetaEnvelopeOmitsEmptyOptionals() {
+    func testMetaEnvelopeAlwaysEmitsRedactionsAndNextCursor() throws {
+        // Canonical contract: redactions + next_cursor are REQUIRED fields.
+        // Empty redactions → `[]`; nil next_cursor → JSON `null`. error_notes
+        // alone is the omit-when-empty optional.
         let meta = MetaEnvelope(
             matchedTotal: 1,
             returned: 1,
-            filteredBy: [],
             latencyMs: 0,
+            filteredBy: [],
             redactions: [],
             nextCursor: nil,
             errorNotes: []
         )
-        let line = formatMetaLine(meta)
-        XCTAssertFalse(line.contains("redactions"))
-        XCTAssertFalse(line.contains("next_cursor"))
+        let line = try formatMetaLine(meta)
+        XCTAssertTrue(line.contains("\"redactions\":[]"))
+        XCTAssertTrue(line.contains("\"next_cursor\":null"))
         XCTAssertFalse(line.contains("error_notes"))
+    }
+
+    func testMetaEnvelopeFilteredBySortedByFormatter() throws {
+        // Canonical formatter sorts filteredBy alphabetically — caller order
+        // is no longer load-bearing. Tools may still pre-sort for clarity;
+        // outcome is identical.
+        let meta = MetaEnvelope(
+            matchedTotal: 0,
+            returned: 0,
+            latencyMs: 0,
+            filteredBy: ["z=1", "a=2", "m=3"]
+        )
+        let line = try formatMetaLine(meta)
+        XCTAssertTrue(line.contains("\"filtered_by\":[\"a=2\",\"m=3\",\"z=1\"]"))
     }
 
     func testMetaQueryDigestIsDeterministic() {
@@ -160,10 +196,14 @@ final class MetaEnvelopeTests: XCTestCase {
         XCTAssertEqual(meta?["matched_total"] as? Int, meta?["returned"] as? Int)
     }
 
-    func testListNotesNextCursorOmitted() async {
+    func testListNotesNextCursorAlwaysPresentAsNull() async {
+        // Per canonical MCPHelpers contract: next_cursor is REQUIRED; offset-
+        // paginated tools emit JSON `null`. Was omit-when-nil in hand-rolled v1
+        // (DD-338 W5 OQ-6) — canonical promotes to always-present.
         let text = await call("apple_notes_list_notes", ["folder_id": .int(10)])
         let meta = parseMeta(from: text)
-        XCTAssertNil(meta?["next_cursor"])
+        XCTAssertNotNil(meta)
+        XCTAssertTrue(meta?["next_cursor"] is NSNull)
     }
 
     // MARK: - apple_notes_search_notes (B)
@@ -217,5 +257,28 @@ final class MetaEnvelopeTests: XCTestCase {
         let text = await call("apple_notes_search_notes", ["query": .string("hello")])
         XCTAssertTrue(text.contains("\"query\""))
         XCTAssertTrue(text.contains("\n\n_meta: "))
+    }
+
+    // MARK: - canonical-shape gate (DD-338 W5 acceptance criterion)
+
+    func testFormatMetaLineEmitsCanonicalMCPHelpersShape() throws {
+        // Gate against future drift between this blade's emission and the
+        // canonical MCPHelpers wire shape. The canonical input/output pair
+        // mirrors the MCPHelpers Swift v0.1.0 own test fixture: required
+        // fields populated, optional errorNotes omitted, filtered_by sorted.
+        let meta = MetaEnvelope(
+            matchedTotal: 100,
+            returned: 25,
+            latencyMs: 12,
+            filteredBy: ["b=2", "a=1"],
+            redactions: [],
+            nextCursor: nil,
+            errorNotes: nil
+        )
+        let line = try formatMetaLine(meta)
+        XCTAssertEqual(
+            line,
+            #"_meta: {"matched_total":100,"returned":25,"filtered_by":["a=1","b=2"],"latency_ms":12,"redactions":[],"next_cursor":null}"#
+        )
     }
 }

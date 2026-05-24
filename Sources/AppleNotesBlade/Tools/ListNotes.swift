@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import MCPHelpers
 
 /// Handler for `apple_notes_list_notes`. Index-only — never decodes bodies.
 ///
@@ -55,8 +56,8 @@ public struct ListNotesHandler: Sendable {
             let meta = MetaEnvelope(
                 matchedTotal: notes.count,
                 returned: notes.count,
-                filteredBy: filteredBy,
-                latencyMs: elapsed.toMilliseconds()
+                latencyMs: elapsed.toMilliseconds(),
+                filteredBy: filteredBy
             )
             return makeResultWithMeta(
                 payload: ListNotesResponse(notes: notes),
